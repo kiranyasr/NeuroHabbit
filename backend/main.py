@@ -65,3 +65,17 @@ async def predict_risk():
         risk_percent = round(probs[0] * 100) # Prob of failure
         risks.append({"habit": name, "risk": risk_percent})
     return {"tomorrow": tomorrow.strftime("%Y-%m-%d"), "risks": risks}
+
+@app.get("/get-habits")
+async def get_habits():
+    # CRT: Pulling all habit records from Supabase for the History Manifest
+    response = supabase.table("habits").select("*").order("created_at", desc=True).execute()
+    return {"habits": response.data}
+
+@app.get("/habit-analytics")
+async def habit_analytics():
+    # CRT: Fetching risk data from your ML model for the visual dashboard
+    response = supabase.table("habits").select("activity, risk_score").limit(10).execute()
+    # Format data for the Recharts component
+    chart_data = [{"name": h['activity'], "risk": h['risk_score']} for h in response.data]
+    return {"analytics": chart_data}

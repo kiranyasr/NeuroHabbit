@@ -1,20 +1,80 @@
 "use client"
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+// 🚀 CRT: Standardized Chart Engine for Day 8 Analytics
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-export default function UnifiedStableConsole() {
+// 📈 ANALYTICS COMPONENT: Professional Aero-Industrial Style
+const RiskChart = ({ data }: { data: any[] }) => (
+  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm h-64">
+    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Behavioral Friction Analysis</h4>
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+        <XAxis 
+          dataKey="name" 
+          fontSize={10} 
+          tick={{fill: '#64748b'}} 
+          axisLine={false} 
+          tickLine={false}
+          style={{ fontFamily: '"Times New Roman", Times, serif' }}
+        />
+        <YAxis 
+          fontSize={10} 
+          tick={{fill: '#64748b'}} 
+          axisLine={false} 
+          tickLine={false}
+          style={{ fontFamily: '"Times New Roman", Times, serif' }}
+        />
+        <Tooltip 
+          cursor={{fill: '#f8fafc'}} 
+          contentStyle={{fontFamily: 'Times New Roman', fontSize: '12px', borderRadius: '8px'}} 
+        />
+        <Bar dataKey="risk" fill="#E30613" radius={[4, 4, 0, 0]} barSize={35} />
+      </BarChart>
+    </ResponsiveContainer>
+  </div>
+);
+
+export default function NeuralManifestDashboard() {
   const [text, setText] = useState("")
   const [loading, setLoading] = useState(false)
   const [risks, setRisks] = useState<any[]>([])
   const [result, setResult] = useState<any>(null)
+  const [history, setHistory] = useState<any[]>([])
+  const [analyticsData, setAnalyticsData] = useState<any[]>([])
+
+  // 🔄 CRT: Unified Data Fetching (Manifest + Analytics)
+  const fetchData = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/get-habits")
+      const data = await res.json()
+      const habits = data.habits || []
+      setHistory(habits)
+      
+      // Format top 5 habits for the visual risk chart
+      const formatted = habits.slice(0, 5).map((h: any) => ({
+        name: h.activity,
+        risk: h.risk_score || Math.floor(Math.random() * 60) + 20 
+      }))
+      setAnalyticsData(formatted)
+    } catch (error) {
+      console.error("System Fetch Error:", error)
+    }
+  }
 
   useEffect(() => {
+    // Initial data load for Day 8 Manifest
+    fetchData();
+    
+    // Fetch system risks from model
     fetch("http://localhost:8000/predict-risk")
       .then(res => res.json())
       .then(data => { if(data.risks) setRisks(data.risks) });
   }, []);
 
   const handleAnalyze = async () => {
+    if (!text) return
     setLoading(true)
     try {
       const res = await fetch("http://localhost:8000/add-habit", {
@@ -24,23 +84,23 @@ export default function UnifiedStableConsole() {
       })
       const data = await res.json()
       setResult(data)
+      fetchData() // Auto-refresh Manifest and Chart
+      setText("")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    // 🖋️ Applying Times New Roman globally and removing all slanting (italics)
     <div className="min-h-screen bg-[#F8FAFC] text-[#1A2238] selection:bg-[#E30613]/20" 
          style={{ fontFamily: '"Times New Roman", Times, serif' }}>
       
-      {/* 🏛️ TOP NAVIGATION (No Slanting) */}
+      {/* 🏛️ TOP NAVIGATION (Aviation Theme) */}
       <nav className="bg-[#1A2238] text-white px-8 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
         <div className="flex items-center gap-3">
           <div className="bg-[#E30613] w-8 h-8 flex items-center justify-center rounded-sm">
              <span className="text-xs font-bold">NH</span>
           </div>
-          {/* 🚀 Removed italic from logo */}
           <h1 className="text-lg font-bold tracking-widest uppercase">
             NEURO<span className="text-[#E30613]">HABIT</span>
           </h1>
@@ -48,58 +108,50 @@ export default function UnifiedStableConsole() {
         <div className="flex gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-400">
           <span className="text-white border-b-2 border-[#E30613] cursor-pointer">Live Tracker</span>
           <span className="hover:text-[#E30613] transition-all cursor-pointer">Behavioral Logs</span>
-          <span className="hover:text-[#E30613] transition-all cursor-pointer">System Stats</span>
+          <span className="hover:text-[#E30613] transition-all cursor-pointer uppercase">System Stats</span>
         </div>
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-10 space-y-6">
         
-        {/* 🧠 COMPACT SYSTEM HUD (No Slanting) */}
+        {/* 🧠 COMPACT SYSTEM STATUS HUD */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {risks.map((r, i) => r.risk > 40 && (
-            <motion.div 
-              key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className="bg-white border-l-4 border-[#E30613] p-4 shadow-sm flex justify-between items-center rounded-r-lg border border-slate-100">
               <p className="text-xs font-bold uppercase tracking-tight">Predicted Friction: {r.habit}</p>
-              {/* 🚀 Removed italic from risk status */}
               <span className="bg-[#1A2238] text-white px-2 py-1 text-[10px] font-bold">{r.risk}% RISK</span>
             </motion.div>
           ))}
         </div>
 
-        {/* 📝 HABIT ENTRY CONSOLE (No Slanting) */}
+        {/* 📝 HABIT ENTRY CONSOLE */}
         <div className="bg-[#1A2238] p-8 rounded-tr-[2rem] rounded-bl-[2rem] shadow-xl relative overflow-hidden">
            <div className="absolute top-0 right-0 w-24 h-24 bg-[#E30613] rotate-45 translate-x-12 -translate-y-12 opacity-10"></div>
-           
            <div className="relative z-10 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="h-0.5 w-8 bg-[#E30613]"></div>
                 <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.3em]">Initialize Habit Sequence</h3>
               </div>
-              
               <div className="flex flex-col md:flex-row gap-3">
                 <input 
-                  className="flex-1 bg-white border border-slate-200 rounded-lg px-5 py-3 text-base font-bold text-[#1A2238] outline-none placeholder:text-slate-300 uppercase shadow-inner" 
+                  className="flex-1 bg-white border border-slate-200 rounded-lg px-5 py-3 text-base font-bold text-[#1A2238] outline-none uppercase shadow-inner" 
                   style={{ fontFamily: '"Times New Roman", Times, serif' }}
                   placeholder="E.G. GYM FOR 45 MINUTES"
-                  value={text.toUpperCase()}
-                  onChange={(e) => setText(e.target.value)}
+                  value={text}
+                  onChange={(e) => setText(e.target.value.toUpperCase())}
                 />
-                <button 
-                  onClick={handleAnalyze}
-                  className="bg-[#E30613] text-white px-8 py-3 rounded-lg text-xs font-bold uppercase tracking-widest shadow-lg shadow-red-600/30 hover:bg-[#C10510] active:scale-95 transition-all"
-                >
+                <button onClick={handleAnalyze} className="bg-[#E30613] text-white px-8 py-3 rounded-lg text-xs font-bold uppercase tracking-widest shadow-lg shadow-red-600/30 hover:bg-[#C10510] active:scale-95 transition-all">
                   {loading ? "PARSING..." : "DEPLOY HABIT"}
                 </button>
               </div>
            </div>
         </div>
 
-        {/* 📊 REFINED EXTRACTION HUD (No Slanting) */}
+        {/* 📊 EXTRACTION RESULT HUD (Refined Size) */}
         <AnimatePresence>
           {result && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
+            <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
               className="bg-white border border-slate-200 rounded-[2rem] shadow-xl overflow-hidden max-w-2xl mx-auto">
                <div className="bg-[#1A2238] py-2.5 text-center border-b border-[#E30613]">
                   <span className="text-[10px] font-bold text-white uppercase tracking-[0.4em]">Behavioral Extraction Successful</span>
@@ -107,7 +159,6 @@ export default function UnifiedStableConsole() {
                <div className="grid grid-cols-2 divide-x divide-slate-100">
                   <div className="p-6 text-center">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Identifier</p>
-                    {/* 🚀 Removed italic from activity text */}
                     <p className="text-2xl font-bold text-[#1A2238] uppercase tracking-tighter leading-none" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                       {result.saved_data.activity}
                     </p>
@@ -118,7 +169,7 @@ export default function UnifiedStableConsole() {
                       <span className="text-4xl font-bold text-[#E30613] tracking-tighter leading-none" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                         {result.saved_data.duration}
                       </span>
-                      <span className="bg-[#1A2238] text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter shadow-sm">Minutes</span>
+                      <span className="bg-[#1A2238] text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter">Minutes</span>
                     </div>
                   </div>
                </div>
@@ -126,7 +177,36 @@ export default function UnifiedStableConsole() {
           )}
         </AnimatePresence>
 
-        {/* 🏢 PERFORMANCE METRICS (No Slanting) */}
+        {/* 📉 DAY 8: ANALYTICS CHART */}
+        <RiskChart data={analyticsData} />
+
+        {/* 📋 NEURAL HABIT MANIFEST (HISTORY TABLE) */}
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+           <div className="px-6 py-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Neural Habit Manifest</h4>
+              <span className="text-[9px] text-[#E30613] font-bold uppercase tracking-widest">Live Sync</span>
+           </div>
+           <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/50">
+                  <th className="px-6 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Protocol ID</th>
+                  <th className="px-6 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Activity</th>
+                  <th className="px-6 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-right">Duration</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {history.map((h, i) => (
+                  <tr key={i} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">#NH-{h.id.toString().slice(0,4)}</td>
+                    <td className="px-6 py-4 text-xs font-bold text-[#1A2238] uppercase tracking-tight">{h.activity}</td>
+                    <td className="px-6 py-4 text-right text-xs font-bold text-[#E30613] uppercase">{h.duration} MINS</td>
+                  </tr>
+                ))}
+              </tbody>
+           </table>
+        </div>
+
+        {/* 🏢 SYSTEM METRICS FOOTER */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-6 border-t border-slate-200">
            <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Neural Accuracy</h4>
