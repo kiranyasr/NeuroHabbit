@@ -163,11 +163,11 @@ export default function NeuralManifestDashboard() {
                <div className="grid grid-cols-2 divide-x divide-slate-100 p-6">
                   <div className="text-center">
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Identifier</p>
-                    <p className="text-2xl font-bold uppercase">{result.saved_data.activity}</p>
+                    <p className="text-xl font-bold uppercase">{result.saved_data.activity}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Risk Score</p>
-                    <p className="text-2xl font-bold text-[#E30613]">{result.prediction}</p>
+                    <p className="text-xl font-bold text-[#E30613]">{result.prediction}</p>
                   </div>
                </div>
             </motion.div>
@@ -177,7 +177,7 @@ export default function NeuralManifestDashboard() {
         {/* 📉 ANALYTICS CHART */}
         <RiskChart data={analyticsData} />
 
-        {/* 📋 HISTORY TABLE */}
+        {/* 📋 NEURAL HABIT MANIFEST (HISTORY TABLE) */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
            <div className="px-6 py-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
               <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Neural Habit Manifest</h4>
@@ -196,14 +196,22 @@ export default function NeuralManifestDashboard() {
                   <tr key={i} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">#NH-{h.id.toString().slice(0,4)}</td>
                     <td className="px-6 py-4 text-xs font-bold text-[#1A2238] uppercase tracking-tight">{h.activity}</td>
-                    <td className="px-6 py-4 text-right text-xs font-bold text-[#E30613] uppercase">{h.risk_score}%</td>
+                    <td className="px-6 py-4 text-right">
+                       <span className={`text-[10px] font-bold px-2 py-1 rounded-sm ${
+                         h.risk_score > 60 ? 'bg-red-100 text-[#E30613]' : 
+                         h.risk_score > 30 ? 'bg-amber-100 text-amber-600' : 
+                         'bg-emerald-100 text-emerald-600'
+                       }`}>
+                        {h.risk_score}% RISK
+                       </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
            </table>
         </div>
 
-        {/* 🏢 SYSTEM METRICS */}
+        {/* 🏢 SYSTEM METRICS FOOTER */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-6 border-t border-slate-200">
            <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Neural Accuracy</h4>

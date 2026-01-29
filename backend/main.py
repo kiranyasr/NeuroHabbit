@@ -2,6 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import json
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,10 +20,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- 🔑 CREDENTIALS (REPLACE WITH YOUR ACTUAL KEYS) ---
-GROQ_API_KEY="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"
-SUPABASE_URL="https://onchutdrarerfnnyqnsf.supabase.co"
-SUPABASE_KEY="sb_publishable_-1flN3MsoDo19vWvU1fo-A_WAt09U-H"
+load_dotenv() # This loads the variables from .env
+
+# CRT: Accessing keys securely via Environment Variables
+# --- 🔑 CREDENTIALS ---
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 # Initialize Clients
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -37,16 +41,13 @@ class HabitLSTM(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        # out shape: (batch_size, sequence_length, hidden_size)
         out, _ = self.lstm(x)
-        # We only care about the AI's prediction after the LAST (7th) day
         out = self.fc(out[:, -1, :])
         return self.sigmoid(out)
 
 # Load the trained .pth file from Day 10
 try:
     model = HabitLSTM()
-    # Ensure this path matches where you saved the file in VS Code
     model.load_state_dict(torch.load("models/habit_lstm_model.pth", weights_only=True))
     model.eval()
     print("✅ CRT: LSTM Model Loaded Successfully")
@@ -62,37 +63,43 @@ class HabitInput(BaseModel):
 @app.post("/add-habit")
 async def add_habit(user_input: HabitInput):
     try:
-        # 1. AI Parsing (Groq) - Updated to a supported model
+        # 1. AI Parsing (Groq)
         prompt = f"Extract 'activity' and 'duration' (minutes) from: '{user_input.text}'. Return JSON only."
         completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile", # ✅ FIXED: Use a supported model
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"}
         )
         
         extracted = json.loads(completion.choices[0].message.content)
+        activity_name = extracted.get("activity", "UNKNOWN").upper()
         
-        # 2. Generate Prediction (LSTM)
-        # Using a dummy sequence for inference (representing last 7 days)
-        dummy_sequence = torch.randn(1, 7, 5) 
-        with torch.no_grad():
-            risk_prediction = model(dummy_sequence).item()
+        # 2. Day 11 Frequency Logic (Thompson Sampling Baseline)
+        # Fetch last 7 days of this specific habit to calculate "Friction"
+        history_check = supabase.table("habits").select("*").eq("activity", activity_name).limit(7).execute()
+        frequency = len(history_check.data)
         
-        risk_percentage = round(risk_prediction * 100)
+        # Behavioral Logic: High frequency = Low Risk
+        if frequency >= 5:
+            risk_score = 15  # Stable
+        elif frequency >= 3:
+            risk_score = 45  # Moderate
+        else:
+            risk_score = 85  # High Risk (Lapse Likely)
 
         # 3. Save to Supabase (History Manifest)
         data = {
-            "activity": extracted.get("activity", "UNKNOWN").upper(),
+            "activity": activity_name,
             "duration": extracted.get("duration", 0),
-            "risk_score": risk_percentage
+            "risk_score": risk_score
         }
         
-        response = supabase.table("habits").insert(data).execute()
+        supabase.table("habits").insert(data).execute()
         
         return {
             "status": "Success",
             "saved_data": data,
-            "prediction": f"{risk_percentage}%"
+            "prediction": f"{risk_score}%"
         }
     except Exception as e:
         print(f"❌ Error in /add-habit: {e}")
@@ -109,7 +116,7 @@ async def get_habits():
 
 @app.get("/predict-risk")
 async def predict_risk():
-    # This endpoint provides the friction alerts seen in the UI dashboard
+    # Provides the friction alerts for the HUD
     return {
         "risks": [
             {"habit": "MORNING RUN", "risk": 54},
@@ -119,5 +126,4 @@ async def predict_risk():
 
 if __name__ == "__main__":
     import uvicorn
-    # 🏛️ Clean line with no extra text after it
     uvicorn.run(app, host="0.0.0.0", port=8000)
