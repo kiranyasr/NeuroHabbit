@@ -44,18 +44,19 @@ export default function NeuralManifestDashboard() {
   const [history, setHistory] = useState<any[]>([])
   const [analyticsData, setAnalyticsData] = useState<any[]>([])
 
-  // 🔄 CRT: Unified Data Fetching (Manifest + Analytics)
+  // 🔄 CRT: Unified Data Fetching with Error Guarding
   const fetchData = async () => {
     try {
       const res = await fetch("http://localhost:8000/get-habits")
+      if (!res.ok) throw new Error("Backend Offline");
       const data = await res.json()
       const habits = data.habits || []
       setHistory(habits)
       
       // Format top 5 habits for the visual risk chart
       const formatted = habits.slice(0, 5).map((h: any) => ({
-        name: h.activity,
-        risk: h.risk_score || Math.floor(Math.random() * 60) + 20 
+        name: h.activity || "UNKNOWN",
+        risk: h.risk_score || 0 
       }))
       setAnalyticsData(formatted)
     } catch (error) {
@@ -64,13 +65,13 @@ export default function NeuralManifestDashboard() {
   }
 
   useEffect(() => {
-    // Initial data load for Day 8 Manifest
     fetchData();
     
-    // Fetch system risks from model
+    // 🛡️ Safe Fetch for predictive risks to prevent UI crashes
     fetch("http://localhost:8000/predict-risk")
-      .then(res => res.json())
-      .then(data => { if(data.risks) setRisks(data.risks) });
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if(data?.risks) setRisks(data.risks) })
+      .catch(() => console.log("Predictive engine standby..."));
   }, []);
 
   const handleAnalyze = async () => {
@@ -82,10 +83,13 @@ export default function NeuralManifestDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: text.toUpperCase() })
       })
+      if (!res.ok) throw new Error("Failed to deploy habit");
       const data = await res.json()
       setResult(data)
       fetchData() // Auto-refresh Manifest and Chart
       setText("")
+    } catch (err) {
+      console.error("Submission Error:", err);
     } finally {
       setLoading(false)
     }
@@ -95,7 +99,7 @@ export default function NeuralManifestDashboard() {
     <div className="min-h-screen bg-[#F8FAFC] text-[#1A2238] selection:bg-[#E30613]/20" 
          style={{ fontFamily: '"Times New Roman", Times, serif' }}>
       
-      {/* 🏛️ TOP NAVIGATION (Aviation Theme) */}
+      {/* 🏛️ TOP NAVIGATION */}
       <nav className="bg-[#1A2238] text-white px-8 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
         <div className="flex items-center gap-3">
           <div className="bg-[#E30613] w-8 h-8 flex items-center justify-center rounded-sm">
@@ -114,7 +118,7 @@ export default function NeuralManifestDashboard() {
 
       <main className="max-w-4xl mx-auto px-6 py-10 space-y-6">
         
-        {/* 🧠 COMPACT SYSTEM STATUS HUD */}
+        {/* 🧠 SYSTEM STATUS HUD */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {risks.map((r, i) => r.risk > 40 && (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -148,7 +152,7 @@ export default function NeuralManifestDashboard() {
            </div>
         </div>
 
-        {/* 📊 EXTRACTION RESULT HUD (Refined Size) */}
+        {/* 📊 EXTRACTION RESULT HUD */}
         <AnimatePresence>
           {result && (
             <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
@@ -156,31 +160,24 @@ export default function NeuralManifestDashboard() {
                <div className="bg-[#1A2238] py-2.5 text-center border-b border-[#E30613]">
                   <span className="text-[10px] font-bold text-white uppercase tracking-[0.4em]">Behavioral Extraction Successful</span>
                </div>
-               <div className="grid grid-cols-2 divide-x divide-slate-100">
-                  <div className="p-6 text-center">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Identifier</p>
-                    <p className="text-2xl font-bold text-[#1A2238] uppercase tracking-tighter leading-none" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                      {result.saved_data.activity}
-                    </p>
+               <div className="grid grid-cols-2 divide-x divide-slate-100 p-6">
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Identifier</p>
+                    <p className="text-2xl font-bold uppercase">{result.saved_data.activity}</p>
                   </div>
-                  <div className="p-6 text-center bg-slate-50/50">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Duration</p>
-                    <div className="flex justify-center items-baseline gap-2">
-                      <span className="text-4xl font-bold text-[#E30613] tracking-tighter leading-none" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                        {result.saved_data.duration}
-                      </span>
-                      <span className="bg-[#1A2238] text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter">Minutes</span>
-                    </div>
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Risk Score</p>
+                    <p className="text-2xl font-bold text-[#E30613]">{result.prediction}</p>
                   </div>
                </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* 📉 DAY 8: ANALYTICS CHART */}
+        {/* 📉 ANALYTICS CHART */}
         <RiskChart data={analyticsData} />
 
-        {/* 📋 NEURAL HABIT MANIFEST (HISTORY TABLE) */}
+        {/* 📋 HISTORY TABLE */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
            <div className="px-6 py-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
               <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Neural Habit Manifest</h4>
@@ -191,7 +188,7 @@ export default function NeuralManifestDashboard() {
                 <tr className="bg-slate-50/50">
                   <th className="px-6 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Protocol ID</th>
                   <th className="px-6 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Activity</th>
-                  <th className="px-6 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-right">Duration</th>
+                  <th className="px-6 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-right">Risk Score</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -199,14 +196,14 @@ export default function NeuralManifestDashboard() {
                   <tr key={i} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">#NH-{h.id.toString().slice(0,4)}</td>
                     <td className="px-6 py-4 text-xs font-bold text-[#1A2238] uppercase tracking-tight">{h.activity}</td>
-                    <td className="px-6 py-4 text-right text-xs font-bold text-[#E30613] uppercase">{h.duration} MINS</td>
+                    <td className="px-6 py-4 text-right text-xs font-bold text-[#E30613] uppercase">{h.risk_score}%</td>
                   </tr>
                 ))}
               </tbody>
            </table>
         </div>
 
-        {/* 🏢 SYSTEM METRICS FOOTER */}
+        {/* 🏢 SYSTEM METRICS */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-6 border-t border-slate-200">
            <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Neural Accuracy</h4>
