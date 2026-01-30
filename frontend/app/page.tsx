@@ -1,10 +1,9 @@
 "use client"
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-// 🚀 CRT: Standardized Chart Engine for Day 8 Analytics
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// 📈 ANALYTICS COMPONENT: Professional Aero-Industrial Style
+// 📈 ANALYTICS COMPONENT
 const RiskChart = ({ data }: { data: any[] }) => (
   <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm h-64">
     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Behavioral Friction Analysis</h4>
@@ -41,10 +40,10 @@ export default function NeuralManifestDashboard() {
   const [loading, setLoading] = useState(false)
   const [risks, setRisks] = useState<any[]>([])
   const [result, setResult] = useState<any>(null)
+  const [nudge, setNudge] = useState<{style: string, message: string} | null>(null)
   const [history, setHistory] = useState<any[]>([])
   const [analyticsData, setAnalyticsData] = useState<any[]>([])
 
-  // 🔄 CRT: Unified Data Fetching with Error Guarding
   const fetchData = async () => {
     try {
       const res = await fetch("http://localhost:8000/get-habits")
@@ -53,7 +52,6 @@ export default function NeuralManifestDashboard() {
       const habits = data.habits || []
       setHistory(habits)
       
-      // Format top 5 habits for the visual risk chart
       const formatted = habits.slice(0, 5).map((h: any) => ({
         name: h.activity || "UNKNOWN",
         risk: h.risk_score || 0 
@@ -66,8 +64,6 @@ export default function NeuralManifestDashboard() {
 
   useEffect(() => {
     fetchData();
-    
-    // 🛡️ Safe Fetch for predictive risks to prevent UI crashes
     fetch("http://localhost:8000/predict-risk")
       .then(res => res.ok ? res.json() : null)
       .then(data => { if(data?.risks) setRisks(data.risks) })
@@ -85,8 +81,10 @@ export default function NeuralManifestDashboard() {
       })
       if (!res.ok) throw new Error("Failed to deploy habit");
       const data = await res.json()
+      
       setResult(data)
-      fetchData() // Auto-refresh Manifest and Chart
+      setNudge(data.nudge)
+      fetchData() 
       setText("")
     } catch (err) {
       console.error("Submission Error:", err);
@@ -110,14 +108,36 @@ export default function NeuralManifestDashboard() {
           </h1>
         </div>
         <div className="flex gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-          <span className="text-white border-b-2 border-[#E30613] cursor-pointer">Live Tracker</span>
-          <span className="hover:text-[#E30613] transition-all cursor-pointer">Behavioral Logs</span>
-          <span className="hover:text-[#E30613] transition-all cursor-pointer uppercase">System Stats</span>
+          <span className="text-white border-b-2 border-[#E30613]">Live Tracker</span>
+          <span>Behavioral Logs</span>
+          <span>System Stats</span>
         </div>
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-10 space-y-6">
         
+        {/* 🧠 DAY 12: AI NUDGE HUD (FIXED: NO SLANTING) */}
+        <AnimatePresence>
+          {nudge && (
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }} 
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-[#1A2238] border-l-4 border-[#E30613] p-6 rounded-r-xl shadow-lg relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 p-2 opacity-10">
+                <span className="text-4xl text-white font-bold">{nudge.style[0]}</span>
+              </div>
+              <h5 className="text-[10px] font-bold text-[#E30613] uppercase tracking-[0.3em] mb-2">
+                AI PROTOCOL: {nudge.style} NUDGE
+              </h5>
+              {/* Removed 'italic' class here */}
+              <p className="text-white text-sm font-medium leading-relaxed not-italic">
+                "{nudge.message}"
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* 🧠 SYSTEM STATUS HUD */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {risks.map((r, i) => r.risk > 40 && (
@@ -139,45 +159,22 @@ export default function NeuralManifestDashboard() {
               </div>
               <div className="flex flex-col md:flex-row gap-3">
                 <input 
-                  className="flex-1 bg-white border border-slate-200 rounded-lg px-5 py-3 text-base font-bold text-[#1A2238] outline-none uppercase shadow-inner" 
+                  className="flex-1 bg-white border border-slate-200 rounded-lg px-5 py-3 text-base font-bold text-[#1A2238] outline-none uppercase" 
                   style={{ fontFamily: '"Times New Roman", Times, serif' }}
                   placeholder="E.G. GYM FOR 45 MINUTES"
                   value={text}
                   onChange={(e) => setText(e.target.value.toUpperCase())}
                 />
-                <button onClick={handleAnalyze} className="bg-[#E30613] text-white px-8 py-3 rounded-lg text-xs font-bold uppercase tracking-widest shadow-lg shadow-red-600/30 hover:bg-[#C10510] active:scale-95 transition-all">
+                <button onClick={handleAnalyze} className="bg-[#E30613] text-white px-8 py-3 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#C10510] transition-all">
                   {loading ? "PARSING..." : "DEPLOY HABIT"}
                 </button>
               </div>
            </div>
         </div>
 
-        {/* 📊 EXTRACTION RESULT HUD */}
-        <AnimatePresence>
-          {result && (
-            <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
-              className="bg-white border border-slate-200 rounded-[2rem] shadow-xl overflow-hidden max-w-2xl mx-auto">
-               <div className="bg-[#1A2238] py-2.5 text-center border-b border-[#E30613]">
-                  <span className="text-[10px] font-bold text-white uppercase tracking-[0.4em]">Behavioral Extraction Successful</span>
-               </div>
-               <div className="grid grid-cols-2 divide-x divide-slate-100 p-6">
-                  <div className="text-center">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Identifier</p>
-                    <p className="text-xl font-bold uppercase">{result.saved_data.activity}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Risk Score</p>
-                    <p className="text-xl font-bold text-[#E30613]">{result.prediction}</p>
-                  </div>
-               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* 📉 ANALYTICS CHART */}
         <RiskChart data={analyticsData} />
 
-        {/* 📋 NEURAL HABIT MANIFEST (HISTORY TABLE) */}
+        {/* 📋 NEURAL HABIT MANIFEST */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
            <div className="px-6 py-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
               <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Neural Habit Manifest</h4>
@@ -210,23 +207,6 @@ export default function NeuralManifestDashboard() {
               </tbody>
            </table>
         </div>
-
-        {/* 🏢 SYSTEM METRICS FOOTER */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-6 border-t border-slate-200">
-           <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
-             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Neural Accuracy</h4>
-             <p className="text-xl font-bold text-[#1A2238]">99.8% <span className="text-[10px] text-[#E30613]">SYNC</span></p>
-           </div>
-           <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
-             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">System Load</h4>
-             <p className="text-xl font-bold text-[#1A2238]">0.2ms <span className="text-[10px] text-[#E30613]">LATENCY</span></p>
-           </div>
-           <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
-             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Active Monitors</h4>
-             <p className="text-xl font-bold text-[#1A2238]">Active <span className="text-[10px] text-[#E30613]">LIVE</span></p>
-           </div>
-        </section>
-
       </main>
     </div>
   )
