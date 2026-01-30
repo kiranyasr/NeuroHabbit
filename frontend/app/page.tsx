@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+// 🚀 CRT: Standardized Chart Engine for Day 8 Analytics
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // 📈 ANALYTICS COMPONENT
@@ -40,7 +41,19 @@ export default function NeuralManifestDashboard() {
   const [loading, setLoading] = useState(false)
   const [risks, setRisks] = useState<any[]>([])
   const [result, setResult] = useState<any>(null)
-  const [nudge, setNudge] = useState<{style: string, message: string} | null>(null)
+  
+  // 🧠 Day 14: System Metrics State
+  const [metrics, setMetrics] = useState({ status: "LOADING", latency: "0ms", active_monitors: "INIT" });
+
+  // 💾 CRT: Persistence logic - Check localStorage on initial load
+  const [nudge, setNudge] = useState<{style: string, message: string} | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('lastNudge');
+      return saved ? JSON.parse(saved) : null;
+    }
+    return null;
+  });
+
   const [history, setHistory] = useState<any[]>([])
   const [analyticsData, setAnalyticsData] = useState<any[]>([])
 
@@ -64,10 +77,24 @@ export default function NeuralManifestDashboard() {
 
   useEffect(() => {
     fetchData();
+    
+    // 🚀 Day 14: System Health Polling Logic
+    const checkHealth = () => {
+      fetch("http://localhost:8000/system-health")
+        .then(res => res.json())
+        .then(data => setMetrics(data))
+        .catch(() => setMetrics({ status: "OFFLINE", latency: "ERR", active_monitors: "DISCONNECT" }));
+    };
+
+    checkHealth();
+    const healthInterval = setInterval(checkHealth, 30000); // Poll every 30s
+
     fetch("http://localhost:8000/predict-risk")
       .then(res => res.ok ? res.json() : null)
       .then(data => { if(data?.risks) setRisks(data.risks) })
       .catch(() => console.log("Predictive engine standby..."));
+
+    return () => clearInterval(healthInterval);
   }, []);
 
   const handleAnalyze = async () => {
@@ -84,6 +111,10 @@ export default function NeuralManifestDashboard() {
       
       setResult(data)
       setNudge(data.nudge)
+      
+      // 💾 CRT: Save nudge so it survives page refresh
+      localStorage.setItem('lastNudge', JSON.stringify(data.nudge));
+      
       fetchData() 
       setText("")
     } catch (err) {
@@ -108,7 +139,14 @@ export default function NeuralManifestDashboard() {
           </h1>
         </div>
         <div className="flex gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-          <span className="text-white border-b-2 border-[#E30613]">Live Tracker</span>
+          <div className="flex items-center gap-1.5">
+            <motion.div 
+              animate={{ opacity: [1, 0.3, 1], scale: [1, 1.2, 1] }} 
+              transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+              className="w-2 h-2 rounded-full bg-[#E30613] shadow-[0_0_8px_#E30613]"
+            />
+            <span className="text-white border-b-2 border-[#E30613]">Live Tracker</span>
+          </div>
           <span>Behavioral Logs</span>
           <span>System Stats</span>
         </div>
@@ -116,7 +154,7 @@ export default function NeuralManifestDashboard() {
 
       <main className="max-w-4xl mx-auto px-6 py-10 space-y-6">
         
-        {/* 🧠 DAY 12: AI NUDGE HUD (FIXED: NO SLANTING) */}
+        {/* 🧠 PERSISTENT AI NUDGE HUD */}
         <AnimatePresence>
           {nudge && (
             <motion.div 
@@ -127,10 +165,17 @@ export default function NeuralManifestDashboard() {
               <div className="absolute top-0 right-0 p-2 opacity-10">
                 <span className="text-4xl text-white font-bold">{nudge.style[0]}</span>
               </div>
-              <h5 className="text-[10px] font-bold text-[#E30613] uppercase tracking-[0.3em] mb-2">
-                AI PROTOCOL: {nudge.style} NUDGE
-              </h5>
-              {/* Removed 'italic' class here */}
+              <div className="flex justify-between items-start">
+                <h5 className="text-[10px] font-bold text-[#E30613] uppercase tracking-[0.3em] mb-2">
+                  AI PROTOCOL: {nudge.style} NUDGE
+                </h5>
+                <button 
+                  onClick={() => { localStorage.removeItem('lastNudge'); setNudge(null); }}
+                  className="text-[9px] text-slate-500 hover:text-[#E30613] transition-colors uppercase font-bold"
+                >
+                  Dismiss
+                </button>
+              </div>
               <p className="text-white text-sm font-medium leading-relaxed not-italic">
                 "{nudge.message}"
               </p>
@@ -207,6 +252,23 @@ export default function NeuralManifestDashboard() {
               </tbody>
            </table>
         </div>
+
+        {/* 🏢 Day 14: DYNAMIC SYSTEM METRICS FOOTER */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-6 border-t border-slate-200">
+           <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
+             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Neural Accuracy</h4>
+             <p className="text-xl font-bold text-[#1A2238]">99.8% <span className="text-[10px] text-[#E30613]">SYNC</span></p>
+           </div>
+           <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
+             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">System Load</h4>
+             <p className="text-xl font-bold text-[#1A2238]">{metrics.latency} <span className="text-[10px] text-[#E30613]">LATENCY</span></p>
+           </div>
+           <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm text-center">
+             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Active Monitors</h4>
+             <p className="text-xl font-bold text-[#1A2238]">{metrics.status} <span className="text-[10px] text-[#E30613]">LIVE</span></p>
+           </div>
+        </section>
+
       </main>
     </div>
   )
