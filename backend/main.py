@@ -2,21 +2,23 @@ import os
 import torch
 import torch.nn as nn
 import json
-import time
 from datetime import datetime, timedelta
+from typing import Optional, List, Dict
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
 from groq import Groq
 
 # 🏛️ SYSTEM CONFIGURATION
-app = FastAPI()
+app = FastAPI(title="NeuroHabit Engine", version="2.0.0")
 
+# 🛡️ CORS Handshake - Critical for Next.js communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], 
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -31,7 +33,23 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- 🧠 LSTM ARCHITECTURE ---
+# --- 🧠 AUTHENTICATION DEPENDENCY ---
+async def get_current_user(authorization: str = Header(None)):
+    """Verifies the User Identity via Supabase JWT Token from the Frontend"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Identity Token Required")
+    try:
+        # Extract Bearer token
+        token = authorization.replace("Bearer ", "")
+        # Validate with Supabase Auth
+        user = supabase.auth.get_user(token)
+        if not user or not user.user:
+            raise HTTPException(status_code=401, detail="Invalid Session")
+        return user.user.id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Neural Verification Failed")
+
+# --- 🧠 LSTM ARCHITECTURE (AI Brain) ---
 class HabitLSTM(nn.Module):
     def __init__(self, input_size=5, hidden_size=64, num_layers=2):
         super(HabitLSTM, self).__init__()
@@ -44,155 +62,170 @@ class HabitLSTM(nn.Module):
         out = self.fc(out[:, -1, :])
         return self.sigmoid(out)
 
-# Load AI Brain
+# Load AI Brain State
 try:
     model = HabitLSTM()
     if os.path.exists("models/habit_lstm_model.pth"):
         model.load_state_dict(torch.load("models/habit_lstm_model.pth", weights_only=True))
         model.eval()
         print("✅ CRT: LSTM Model Loaded Successfully")
-    else:
-        print("⚠️ Heuristic mode active.")
 except Exception as e:
-    print(f"⚠️ Model Load Error: {e}")
+    print(f"⚠️ AI Model Load Error: {e}")
 
-# --- 📋 NUDGE PROTOCOLS ---
-NUDGE_STYLES = {
-    "SERIOUS": "Write a short, stern, military-style discipline warning about missing this habit. No fluff.",
-    "FUNNY": "Write a short, sarcastic nudge for missing a habit using Gen-Z slang. Keep it roast-style.",
-    "LOGICAL": "Write a short, data-driven fact about why this habit is essential for brain neuroplasticity."
-}
-
+# --- 📋 INPUT MODELS ---
 class HabitInput(BaseModel):
     text: str
 
-# --- 🚀 ROUTES ---
+class RegistryInput(BaseModel):
+    name: str
 
-# 🔥 Day 16: Activity Heatmap
-@app.get("/activity-heatmap")
-async def get_heatmap():
+# --- 🚀 ROUTES (Day 24: 7-Day Efficiency Stats) ---
+
+@app.get("/daily-progress-stats")
+async def get_progress_stats(user_id: str = Depends(get_current_user)):
+    """Calculates completion percentage of registered habits for the last 7 days"""
     try:
-        res = supabase.table("habits").select("created_at").execute()
-        hourly_counts = {i: 0 for i in range(24)}
-        for record in res.data:
-            dt = datetime.fromisoformat(record['created_at'].replace('Z', '+00:00'))
-            hourly_counts[dt.hour] += 1
-        return [{"hour": h, "count": c} for h, c in hourly_counts.items()]
-    except Exception: return []
+        # 1. Fetch Registered Goals for the user
+        registry = supabase.table("habit_registry").select("habit_name").eq("user_id", user_id).execute()
+        goal_names = [goal['habit_name'] for goal in registry.data]
+        goal_count = len(goal_names)
+        
+        if goal_count == 0:
+            return []
 
-# 📊 Day 15: Trend Vector (ROBUST FIX FOR SPACES)
-@app.get("/habit-trends/{activity}")
-async def get_habit_trends(activity: str):
-    # CRT FIX: Decode URL spaces and normalize
-    clean_name = activity.replace("%20", " ").upper()
-    now = datetime.utcnow()
-    week_ago = now - timedelta(days=7)
-    two_weeks_ago = now - timedelta(days=14)
+        # 2. Fetch logs for the last 7 days
+        seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        logs_res = supabase.table("habits").select("activity, created_at").eq("user_id", user_id).gte("created_at", seven_days_ago).execute()
+        
+        stats = []
+        # 3. Iterate through each of the last 7 days to calculate efficiency
+        for i in range(7):
+            target_date = (datetime.utcnow() - timedelta(days=i)).date()
+            
+            # Count unique registered habits completed on this target day
+            completed_on_day = {
+                log['activity'] for log in logs_res.data 
+                if datetime.fromisoformat(log['created_at'].replace('Z', '+00:00')).date() == target_date
+                and log['activity'] in goal_names
+            }
+            
+            # Efficiency Score = (Done / Total Goals) * 100
+            success_rate = (len(completed_on_day) / goal_count) * 100
+            stats.append({
+                "day": target_date.strftime("%a"), 
+                "score": round(success_rate)
+            })
+            
+        return stats[::-1] # Sort Chronologically for Recharts
+    except Exception as e:
+        print(f"Stats Calculation Error: {e}")
+        return []
+
+# --- 🚀 ROUTES (Day 23: Neural Habit Registry) ---
+
+@app.post("/register-habit")
+async def register_habit(goal: RegistryInput, user_id: str = Depends(get_current_user)):
+    """Creates a permanent target in the habit_registry table"""
     try:
-        this_week = supabase.table("habits").select("id", count="exact").eq("activity", clean_name).gte("created_at", week_ago.isoformat()).execute()
-        last_week = supabase.table("habits").select("id", count="exact").eq("activity", clean_name).lt("created_at", week_ago.isoformat()).gte("created_at", two_weeks_ago.isoformat()).execute()
-        curr, prev = (this_week.count or 0), (last_week.count or 0)
-        vector = "NEW_SEQUENCE" if prev == 0 else "UPWARD" if curr > prev else "DECLINING" if curr < prev else "STABLE"
-        return {"activity": clean_name, "this_week": curr, "last_week": prev, "trend_vector": vector}
-    except Exception:
-        return {"activity": clean_name, "trend_vector": "STABLE"}
+        data = {"habit_name": goal.name.upper(), "user_id": user_id}
+        supabase.table("habit_registry").insert(data).execute()
+        return {"status": "REGISTERED"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Registry Error: {str(e)}")
 
-# 🚀 Day 17: Next Window Prediction
-@app.get("/next-prediction")
-async def predict_next_window():
+@app.get("/get-registry")
+async def get_registry(user_id: str = Depends(get_current_user)):
+    """Fetches checklist goals for the frontend UI"""
+    res = supabase.table("habit_registry").select("*").eq("user_id", user_id).execute()
+    return {"registry": res.data}
+
+@app.delete("/unregister-habit/{habit_id}")
+async def unregister_habit(habit_id: str, user_id: str = Depends(get_current_user)):
+    """Removes a permanent goal"""
+    supabase.table("habit_registry").delete().eq("id", habit_id).eq("user_id", user_id).execute()
+    return {"status": "DELETED"}
+
+# --- 🚀 LOGGING & AI ANALYSIS ROUTES ---
+
+@app.post("/add-habit")
+async def add_habit(user_input: HabitInput, user_id: str = Depends(get_current_user)):
+    """Analyzes text with Groq, evaluates risk, and saves to habits table"""
     try:
-        res = supabase.table("habits").select("created_at").execute()
-        hourly_counts = {i: 0 for i in range(24)}
-        for record in res.data:
-            dt = datetime.fromisoformat(record['created_at'].replace('Z', '+00:00'))
-            hourly_counts[dt.hour] += 1
-        current_hour = datetime.utcnow().hour
-        future_windows = {h % 24: hourly_counts[h % 24] for h in range(current_hour + 1, current_hour + 7)}
-        if not future_windows or max(future_windows.values()) == 0:
-            return {"next_window": None}
-        return {"next_window": max(future_windows, key=future_windows.get)}
-    except Exception: return {"next_window": None}
+        # NLP Extraction with Llama 3
+        prompt = f"Extract 'activity' and 'duration' (int, default 0) from: '{user_input.text}'. Return JSON only."
+        completion = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile", 
+            messages=[{"role": "user", "content": prompt}], 
+            response_format={"type": "json_object"}
+        )
+        extracted = json.loads(completion.choices[0].message.content)
+        activity_name = str(extracted.get("activity", "UNKNOWN")).upper()
+        
+        # Simple Risk Logic (Can be replaced by LSTM inference)
+        history = supabase.table("habits").select("*").eq("activity", activity_name).eq("user_id", user_id).limit(5).execute()
+        risk_score = 20 if len(history.data) >= 3 else 80 
+        
+        data = {
+            "activity": activity_name, 
+            "duration": extracted.get("duration", 0), 
+            "risk_score": risk_score, 
+            "user_id": user_id
+        }
+        supabase.table("habits").insert(data).execute()
+        return {"status": "Success", "saved_data": data}
+    except Exception as e:
+        print(f"Log Error: {e}")
+        raise HTTPException(status_code=500, detail="Neural Link Failure")
 
-# ⚡ DAY 18: STREAK ENGINE
 @app.get("/habit-streak")
-async def get_streak():
+async def get_streak(user_id: str = Depends(get_current_user)):
+    """Calculates consecutive days of activity"""
     try:
-        res = supabase.table("habits").select("created_at").execute()
+        res = supabase.table("habits").select("created_at").eq("user_id", user_id).execute()
         dates = sorted({datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')).date() for r in res.data}, reverse=True)
+        
         if not dates: return {"streak": 0, "level": "RECRUIT"}
+        
         today = datetime.utcnow().date()
         if dates[0] < today - timedelta(days=1): return {"streak": 0, "level": "BROKEN"}
-        streak = 0
-        curr_date = dates[0]
+        
+        streak, curr_date = 0, dates[0]
         for d in dates:
             if d == curr_date:
                 streak += 1
                 curr_date -= timedelta(days=1)
             else: break
+            
         level = "NEURAL COMMANDER" if streak >= 7 else "INITIATE" if streak >= 3 else "RECRUIT"
         return {"streak": streak, "level": level}
-    except Exception: return {"streak": 0, "level": "ERROR"}
+    except Exception: return {"streak": 0, "level": "SYSTEM_OFFLINE"}
 
-# 🔥 Day 19: Neural Identity Report
-@app.get("/generate-report")
-async def generate_report():
-    try:
-        streak_info = await get_streak()
-        prompt = f"SUBJECT STATUS: Write a 2-sentence psychological profile. Streak: {streak_info['streak']} days. Level: {streak_info['level']}. Tone: Cyberpunk/Industrial/Cold."
-        completion = groq_client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": prompt}])
-        return {"report": completion.choices[0].message.content}
-    except Exception: return {"report": "Identity sync failed. Maintain sequence."}
-
-# 🏥 Day 20: Performance Score (NPS)
 @app.get("/neural-performance-score")
-async def get_nps():
-    try:
-        # Weighted metric: Streak (50%) + Volume (30%) + System Sync (20%)
-        streak_info = await get_streak()
-        res = supabase.table("habits").select("id").execute()
-        total_logs = len(res.data)
-        
-        score = min((streak_info['streak'] * 10) + (total_logs * 1) + 20, 100)
-        return {
-            "nps_score": score, 
-            "rating": "OPTIMAL" if score > 80 else "STABLE" if score > 50 else "CALIBRATING",
-            "load": "NORMAL"
-        }
-    except Exception: return {"nps_score": 0, "rating": "ERROR"}
-
-@app.post("/add-habit")
-async def add_habit(user_input: HabitInput):
-    try:
-        prompt = f"Extract 'activity' and 'duration' (int) from: '{user_input.text}'. JSON only."
-        completion = groq_client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": prompt}], response_format={"type": "json_object"})
-        extracted = json.loads(completion.choices[0].message.content)
-        
-        raw_dur = str(extracted.get("duration", 0))
-        duration_int = int("".join(filter(str.isdigit, raw_dur))) if any(c.isdigit() for c in raw_dur) else 0
-        activity_name = str(extracted.get("activity", "UNKNOWN")).upper()
-        
-        history = supabase.table("habits").select("*").eq("activity", activity_name).limit(10).execute()
-        risk_score = 15 if len(history.data) >= 5 else 45 if len(history.data) >= 3 else 85
-        
-        style = "SERIOUS" if risk_score > 70 else "FUNNY" if risk_score > 30 else "LOGICAL"
-        nudge = groq_client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": f"{NUDGE_STYLES[style]} Habit: {activity_name}"}])
-
-        data = {"activity": activity_name, "duration": duration_int, "risk_score": risk_score}
-        supabase.table("habits").insert(data).execute()
-        return {"status": "Success", "prediction": f"{risk_score}%", "saved_data": data, "nudge": {"style": style, "message": nudge.choices[0].message.content}}
-    except Exception as e:
-        print(f"❌ Critical Failure: {e}")
-        raise HTTPException(status_code=500, detail="Neural Link Failure")
+async def get_nps(user_id: str = Depends(get_current_user)):
+    """Calculates overall system performance based on volume"""
+    res = supabase.table("habits").select("id").eq("user_id", user_id).execute()
+    score = min(len(res.data) * 5 + 20, 100)
+    return {"nps_score": score, "rating": "OPTIMAL" if score > 75 else "STABLE"}
 
 @app.get("/get-habits")
-async def get_habits():
-    res = supabase.table("habits").select("*").order("created_at", desc=True).execute()
+async def get_habits(user_id: str = Depends(get_current_user)):
+    """Fetches the raw log history"""
+    res = supabase.table("habits").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
     return {"habits": res.data}
+
+@app.delete("/purge-data")
+async def purge_data(confirm: bool = False, user_id: str = Depends(get_current_user)):
+    """Sanitizes user history"""
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Confirmation required.")
+    supabase.table("habits").delete().eq("user_id", user_id).execute()
+    return {"status": "WIPE_COMPLETE"}
 
 @app.get("/system-health")
 async def system_health():
-    return {"status": "OPERATIONAL", "latency": "LOW", "model_accuracy": "99.8%"}
+    return {"status": "OPERATIONAL", "latency": "LOW"}
 
 if __name__ == "__main__":
     import uvicorn
+    # Make sure port matches your frontend fetch calls
     uvicorn.run(app, host="0.0.0.0", port=8000)
